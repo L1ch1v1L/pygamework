@@ -8,7 +8,7 @@ pygame.init()
 window_size = (640, 480)
 PLAYERCOLOR1 = [0,0,0]
 PLAYERCOLOR2 = [1,1,1]
-enemynumber = 8
+enemynumber = 10
 
 
 
@@ -22,6 +22,11 @@ def score():
 screen = pygame.display.set_mode(window_size)
 
 pygame.display.set_caption("ИГРА СМЕШНАЯ")
+
+bullets = []
+enemies = []
+bosses = []
+
 
 class ScoreManager:
     def __init__(self):
@@ -39,11 +44,48 @@ class ScoreManager:
             self.score3 += 1
         elif color == (0, 0, 0):
             self.score4 += 1
-
+    def boss_score(self, color):
+        if color == (255, 255, 255):
+            self.score1 += 25
+        elif color == (0, 0, 255):
+            self.score2 += 25
+        elif color == (255, 0, 0):
+            self.score3 += 25
+        elif color == (0, 0, 0):
+            self.score4 += 25
+    def set_text(self):
+        font = pygame.font.SysFont('Arial',30)
+        text = f"W:{self.score1} B:{self.score2} R:{self.score3} B:{self.score4}"
+        text_surface = font.render(text, True,(255,255,255))
+        screen.blit(text_surface,(10,10))
     def get_scores(self):
         return self.score1, self.score2, self.score3, self.score4
 
 score_manager = ScoreManager()
+
+class Boss(pygame.Rect):
+    def __init__(self, x):
+        super().__init__(x, 0, 60, 60)
+        self.health = 15
+        self.speed = 0.5
+        self.color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        self.color_change_time = pygame.time.get_ticks()
+
+    def move(self):
+        self.y += self.speed
+        if self.y >= 420:
+            score()
+            pygame.quit()
+            sys.exit()
+            
+
+    def draw(self, screen):
+        current_time = pygame.time.get_ticks()
+        if current_time - self.color_change_time > 100:  # изменять цвет каждые 100 мс
+            self.color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            self.color_change_time = current_time
+        pygame.draw.rect(screen,self.color,self)
+
 
 class Enemy(pygame.Rect):
     def __init__(self, x):
@@ -69,27 +111,34 @@ class Enemy(pygame.Rect):
     
 
 class Bullet(pygame.Rect):
-    def __init__(self, x, y,color):
+    def __init__(self, x, y, color):
         super().__init__(x, y, 15, 10)
-        self.color = color  
+        self.color = color
         self.speed = 10
-
-    def move(self):
-        self.y -= self.speed
-        for i in range(len(enemies)):
-            if self.colliderect(enemies[i]):
-                enemies.pop(i)
-                break
-    def draw(self, screen):
-        pygame.draw.rect(screen, (255, 0, 0), self)
+        self.to_remove = False
 
     def move(self):
         self.y -= self.speed
         for i in range(len(enemies)):
             if self.colliderect(enemies[i]):
                 score_manager.increment_score(self.color)
+                score_manager.set_text()
                 enemies.pop(i)
+                self.to_remove = True
                 break
+        for i in range(len(bosses)):
+            if self.colliderect(bosses[i]):
+                bosses[i].health -= 1
+                self.to_remove = True
+                if bosses[i].health == 0:
+                    score_manager.boss_score(self.color)
+                    score_manager.set_text()
+                    bosses.pop(i)
+                break
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, self.color, self)
+
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, self)  
 
@@ -177,8 +226,7 @@ class Player4(pygame.Rect):
       pygame.draw.rect(screen, PLAYERCOLOR1, self) 
 
 
-bullets = []
-enemies = []
+
 player = Player1()
 player2 = Player2()
 player3 = Player3()
@@ -192,6 +240,14 @@ def spawnEnemy():
         enemy = Enemy(random.randint(0,640))
         enemies.append(enemy)
     for i in enemies:
+        i.move()
+        i.draw(screen)
+
+def spawnBoss():
+    if len(bosses) < 1:
+        boss = Boss(random.randint(0,640))
+        bosses.append(boss)
+    for i in bosses:
         i.move()
         i.draw(screen)
 
@@ -232,17 +288,26 @@ while True:
     player2.move()
     player3.move()
     player4.move()
+    to_remove = []
     for bullet in bullets:
         bullet.move()
+        if bullet.y < 0 or bullet.to_remove:
+            to_remove.append(bullet)
+
+    for bullet in to_remove:
+        bullets.remove(bullet)
+    for bullet in bullets:
+        bullet.move()
+        bullet.draw(screen)
         if bullet.y < 0:
             bullets.remove(bullet)
     spawnEnemy()
+    spawnBoss()
+    score_manager.set_text()
     player.draw(screen)
     player2.draw(screen)
     player3.draw(screen)
     player4.draw(screen)
-    for bullet in bullets:
-        bullet.draw(screen)
 
     
     pygame.display.flip()
